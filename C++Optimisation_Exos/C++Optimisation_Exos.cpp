@@ -4,6 +4,8 @@
 #include <intrin.h>
 #include <iostream>
 #include <iterator>
+#include <immintrin.h>
+#include <omp.h>
 
 using namespace std;
 
@@ -86,12 +88,10 @@ void asmtest()
     cout << "avg: " << avg << " ipc: " << 49 / avg << endl << endl;
 }
 
+const int array_size = 131072;
+int my_array[array_size];
 void fill_int_array()
 {
-
-    const int array_size = 131072;
-    int my_array[array_size];
-
     double min = 999999999;
     double max = 0;
     int outer_repeats = 1000;
@@ -302,7 +302,7 @@ void alignment_test()
 {
     double min = 999999999;
     double max = 0;
-    int outer_repeats = 100;
+    int outer_repeats = 500;
     int inner_repeats = 5;
 
     struct s
@@ -325,7 +325,7 @@ void alignment_test()
                     s1[si].t[k] = k;
                 }
             }
-            //cout << "";
+            cout << "";
         }
         double inner_time_taken = chrono::duration_cast<chrono::duration<double>>(chrono::high_resolution_clock::now() - inner_start_chrono).count();
         min = inner_time_taken < min ? inner_time_taken : min;
@@ -393,6 +393,83 @@ void page_faults_test()
     free(mem);
 }
 
+// Other ----------------------------------------------------------------------------------------------------------
+// simd
+const int taille = 10000000;
+float t[taille];
+
+void simd_float() {
+    for (size_t i = 0; i < taille; i++)
+    {
+		t[i] = rand() % 10;
+    }
+	float total = 0;    
+
+    for (size_t i = 0; i < taille; i++)
+    {
+        total += t[i];
+	}
+    std::cout << total << std::endl;
+}
+
+__m128 t2[taille / 4];
+
+void simd_simd() 
+{
+    for (size_t i = 0; i < taille/4; i++)
+    {
+		t2[i] = _mm_set_ps(rand() % 10, rand() % 10, rand() % 10, rand() % 10);
+    }
+	__m128 total2 = _mm_set_ps(0, 0, 0, 0);
+
+    for (size_t i = 0; i < taille/4; i++)
+    {
+		total2 = _mm_add_ps(total2, t2[i]);
+    }
+	float z = total2.m128_f32[0] + total2.m128_f32[1] + total2.m128_f32[2] + total2.m128_f32[3];
+    std::cout << z << std::endl;
+}
+
+// openmp
+void openm()
+{
+    // Define the size of the array
+    const int SIZE = 100000000;
+
+    // Initialize the array
+    int* array = new int[SIZE];
+    for (int i = 0; i < SIZE; ++i)
+    {
+        array[i] = i;
+    }
+
+    // Define a variable for the sum
+    long long sum = 0;
+
+    // Get the start time
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // Use OpenMP to calculate the sum in parallel
+#pragma omp parallel for reduction(+:sum) schedule(static, 1000)
+    for (int i = 0; i < SIZE; ++i)
+    {
+        sum += array[i];
+    }
+
+    // Get the end time
+    auto end = std::chrono::high_resolution_clock::now();
+
+    // Print the sum
+    std::cout << "Sum: " << sum << std::endl;
+
+    // Calculate and print the time taken
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Time elapsed: " << elapsed.count() << " seconds" << std::endl;
+
+
+    // Clean up the array
+    delete[] array;
+}
 
 
 // Main ----------------------------------------------------------------------------------------------------------
@@ -422,19 +499,17 @@ int main()
 	//branch_pred_facile();
 
 	// Cohérence de Cache
-	//cache_cohesion_test();
+    //cache_cohesion_test();
 
 	// Alignement des données
 	//alignment_test();
 
+    // SIMD
+    //simd_float();
+    //simd_simd();
 
-
-    // questions 
-    // bottleneck ??
-	// diff heap / stack ??
-    // overhead du profiler
-	// loop internal vs external
-    // loop parralleles
+	// OpenMP
+	//openm();
 
 	return 0;
 
